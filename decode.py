@@ -35,94 +35,66 @@ def decode(file_encode, file_key, file_vec, mod, file_text):
 
     iv = get_vector_iv(file_vec, key)
 
-    encode_text = reading_binary_file(file_encode)
+    with open(file_encode, 'rb') as f_encode:
+        with open(file_text, "w+") as f_text:
+            if mod == "ECB":
+                mod_ = DES.MODE_ECB
+                while bytes_ := f_encode.read(8):
+                    msg = des_decode(key[16:], mod_, bytes_)
+                    msg = des_encode(key[8:16], mod_, msg)
+                    msg = des_decode(key[:8], mod_, msg)
+                    f_text.write(del_zero(msg).decode())
 
-    if mod == "ECB":
-        mod_ = DES.MODE_ECB
-        result = []
-        i = 0
-        while i < len(encode_text):
-            msg = des_decode(key[16:], mod_, encode_text[i:i + 8])
-            msg = des_encode(key[8:16], mod_, msg)
-            msg = des_decode(key[:8], mod_, msg)
-            result.append(msg)
-            i += 8
+            elif mod == "ICBC":
+                mod_ = DES.MODE_CBC
+                msg1 = iv
+                msg2 = iv
+                msg3 = iv
+                while bytes_ := f_encode.read(8):
+                    msg = check_block(bytes_)
 
-        str_ = ""
-        for i in range(len(result)):
-            str_ += del_zero(result[i]).decode()
+                    block = des_decode(key[16:], mod_, msg, iv)
+                    swap = byte_xor(block, msg1)
+                    msg1 = msg
 
-        writing_file(file_text, str_)
-        return str_
-    elif mod == "ICBC":
-        mod_ = DES.MODE_CBC
-        result = []
-        i = 0
-        msg1 = iv
-        msg2 = iv
-        msg3 = iv
-        while i < len(encode_text):
-            msg = check_block(encode_text[i:i + 8])
+                    msg = swap
+                    block = des_encode(key[8:16], mod_, msg, iv)
+                    swap = byte_xor(block, msg2)
+                    msg2 = msg
 
-            block = des_decode(key[16:], mod_, msg, iv)
-            swap = byte_xor(block, msg1)
-            msg1 = msg
+                    msg = swap
 
-            msg = swap
-            block = des_encode(key[8:16], mod_, msg, iv)
-            swap = byte_xor(block, msg2)
-            msg2 = msg
+                    block = des_decode(key[:8], mod_, msg, iv)
+                    swap = byte_xor(block, msg3)
+                    msg3 = msg
 
-            msg = swap
+                    f_text.write(del_zero(swap).decode())
 
-            block = des_decode(key[:8], mod_, msg, iv)
-            swap = byte_xor(block, msg3)
-            msg3 = msg
+            elif mod == "OCBC":
+                mod_ = DES.MODE_CBC
+                swap = iv
+                while bytes_ := f_encode.read(8):
+                    msg = check_block(bytes_)
+                    block = des_decode(key[16:], mod_, msg, iv)
+                    block = des_encode(key[8:16], mod_, block, iv)
+                    block = des_decode(key[:8], mod_, block, iv)
+                    block = del_zero(block)
+                    block = byte_xor(block, swap)
+                    swap = msg
+                    f_text.write(del_zero(block).decode())
 
-            result.append(swap)
-            i += 8
+            elif mod == "PAD":
+                mod_ = DES.MODE_ECB
+                while bytes_ := f_encode.read(24):
+                    msg = des_decode(key[16:], mod_, check_block(bytes_))
+                    msg = msg[4:len(msg) - 4]
+                    msg = des_decode(key[8:16], mod_, msg)
+                    msg = msg[4:len(msg) - 4]
+                    block = des_decode(key[:8], mod_, msg)
 
-        str_ = byte_list_to_str(result)
-        writing_file(file_text, str_)
-        return str_
-    elif mod == "OCBC":
-        mod_ = DES.MODE_CBC
-        result = []
-        i = 0
-        swap = iv
-        while i < len(encode_text):
-            msg = check_block(encode_text[i:i + 8])
-            block = des_decode(key[16:], mod_, msg, iv)
-            block = des_encode(key[8:16], mod_, block, iv)
-            block = des_decode(key[:8], mod_, block, iv)
-            block = del_zero(block)
-            block = byte_xor(block, swap)
-            swap = msg
-            result.append(block)
-            i += 8
-
-        str_ = byte_list_to_str(result)
-        writing_file(file_text, str_)
-        return str_
-    elif mod == "PAD":
-        mod_ = DES.MODE_ECB
-        result = []
-        i = 0
-        while i < len(encode_text):
-            msg = des_decode(key[16:], mod_, check_block(encode_text[i:i + 24]))
-            msg = msg[4:len(msg) - 4]
-            msg = des_decode(key[8:16], mod_, msg)
-            msg = msg[4:len(msg) - 4]
-            block = des_decode(key[:8], mod_, msg)
-
-            result.append(block)
-            i += 24
-
-        str_ = byte_list_to_str(result)
-        writing_file(file_text, str_)
-        return str_
-    else:
-        raise ValueError("Invalid triple DES mod.")
+                    f_text.write(del_zero(block).decode())
+            else:
+                raise ValueError("Invalid triple DES mod.")
 
 
 if __name__ == "__main__":

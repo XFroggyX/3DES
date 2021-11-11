@@ -102,17 +102,14 @@ def encode(file_text, file_key, file_encode_text, file_vec="", mod="ECB"):
         with open(file_encode_text, "wb+") as f_encode:
             if mod == "ECB":
                 mod_ = DES.MODE_ECB
-                i = 0
                 while text := f_text.read(8):
                     msg = des_encode(key_[:8], mod_, check_block(text.encode()))
                     msg = des_decode(key_[8:16], mod_, msg)
                     msg = des_encode(key_[16:], mod_, msg)
                     f_encode.write(msg)
-                    i += 8
 
             elif mod == "ICBC":
                 mod_ = DES.MODE_CBC
-                i = 0
                 block1 = iv
                 block2 = iv
                 block3 = iv
@@ -124,13 +121,10 @@ def encode(file_text, file_key, file_encode_text, file_vec="", mod="ECB"):
                     block2 = des_decode(key_[8:16], mod_, msg, iv)
                     msg = byte_xor(block3, block2)
                     block3 = des_encode(key_[16:], mod_, msg, iv)
-
                     f_encode.write(block3)
-                    i += 8
 
             elif mod == "OCBC":
                 mod_ = DES.MODE_CBC
-                i = 0
                 block = iv
                 while text := f_text.read(8):
                     msg = check_block(byte_xor(block, text.encode()))
@@ -138,11 +132,9 @@ def encode(file_text, file_key, file_encode_text, file_vec="", mod="ECB"):
                     block = des_decode(key_[8:16], mod_, block, iv)
                     block = des_encode(key_[16:], mod_, block, iv)
                     f_encode.write(block)
-                    i += 8
 
             elif mod == "PAD":
                 mod_ = DES.MODE_ECB
-                i = 0
                 while text := f_text.read(8):
                     msg = des_encode(key_[:8], mod_, check_block(text.encode()))
                     rand = os.urandom(4)
@@ -151,9 +143,7 @@ def encode(file_text, file_key, file_encode_text, file_vec="", mod="ECB"):
                     rand = os.urandom(4)
                     msg = rand + msg + rand
                     block = des_encode(key_[16:], mod_, msg)
-
                     f_encode.write(block)
-                    i += 8
 
             else:
                 f_encode.close()
