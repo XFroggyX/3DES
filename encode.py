@@ -92,97 +92,72 @@ def byte_xor(ba1, ba2):
     return bytes(result)
 
 
-# преобразует список байтовых сток в одну строку
-def byte_list_to_byte_str(byte_list):
-    bytes_str = b""
-    for i in range(len(byte_list)):
-        bytes_str += byte_list[i]
-    return bytes_str
-
-
 # main
 def encode(file_text, file_key, file_encode_text, file_vec="", mod="ECB"):
     key_ = reading_binary_file(file_key)
     check_size_key(key_)
 
     iv = get_vector_iv(file_vec, key_)
+    with open(file_text, "r") as f_text:
+        with open(file_encode_text, "wb+") as f_encode:
+            if mod == "ECB":
+                mod_ = DES.MODE_ECB
+                i = 0
+                while text := f_text.read(8):
+                    msg = des_encode(key_[:8], mod_, check_block(text.encode()))
+                    msg = des_decode(key_[8:16], mod_, msg)
+                    msg = des_encode(key_[16:], mod_, msg)
+                    f_encode.write(msg)
+                    i += 8
 
-    text = get_str_from_file(file_text).encode()
+            elif mod == "ICBC":
+                mod_ = DES.MODE_CBC
+                i = 0
+                block1 = iv
+                block2 = iv
+                block3 = iv
+                while text := f_text.read(8):
+                    msg = byte_xor(block1, check_block(text.encode()))
+                    block1 = des_encode(key_[:8], mod_, msg, iv)
 
-    if mod == "ECB":
-        mod_ = DES.MODE_ECB
-        result = []
-        i = 0
-        while i < len(text):
-            msg = des_encode(key_[:8], mod_, check_block(text[i:i + 8]))
-            msg = des_decode(key_[8:16], mod_, msg)
-            msg = des_encode(key_[16:], mod_, msg)
-            result.append(msg)
-            i += 8
+                    msg = byte_xor(block2, block1)
+                    block2 = des_decode(key_[8:16], mod_, msg, iv)
+                    msg = byte_xor(block3, block2)
+                    block3 = des_encode(key_[16:], mod_, msg, iv)
 
-        bytes_str = byte_list_to_byte_str(result)
-        writing_binary_file(file_encode_text, bytes_str)
-        return bytes_str
+                    f_encode.write(block3)
+                    i += 8
 
-    elif mod == "ICBC":
-        mod_ = DES.MODE_CBC
-        result = []
-        i = 0
-        block1 = iv
-        block2 = iv
-        block3 = iv
-        while i < len(text):
-            msg = byte_xor(block1, check_block(text[i:i + 8]))
-            block1 = des_encode(key_[:8], mod_, msg, iv)
+            elif mod == "OCBC":
+                mod_ = DES.MODE_CBC
+                i = 0
+                block = iv
+                while text := f_text.read(8):
+                    msg = check_block(byte_xor(block, text.encode()))
+                    block = des_encode(key_[:8], mod_, msg, iv)
+                    block = des_decode(key_[8:16], mod_, block, iv)
+                    block = des_encode(key_[16:], mod_, block, iv)
+                    f_encode.write(block)
+                    i += 8
 
-            msg = byte_xor(block2, block1)
-            block2 = des_decode(key_[8:16], mod_, msg, iv)
-            msg = byte_xor(block3, block2)
-            block3 = des_encode(key_[16:], mod_, msg, iv)
+            elif mod == "PAD":
+                mod_ = DES.MODE_ECB
+                i = 0
+                while text := f_text.read(8):
+                    msg = des_encode(key_[:8], mod_, check_block(text.encode()))
+                    rand = os.urandom(4)
+                    msg = rand + msg + rand
+                    msg = des_encode(key_[8:16], mod_, msg)
+                    rand = os.urandom(4)
+                    msg = rand + msg + rand
+                    block = des_encode(key_[16:], mod_, msg)
 
-            result.append(block3)
-            i += 8
+                    f_encode.write(block)
+                    i += 8
 
-        bytes_str = byte_list_to_byte_str(result)
-        writing_binary_file(file_encode_text, bytes_str)
-        return bytes_str
-
-    elif mod == "OCBC":
-        mod_ = DES.MODE_CBC
-        result = []
-        i = 0
-        block = iv
-        while i < len(text):
-            msg = check_block(byte_xor(block, text[i:i + 8]))
-            block = des_encode(key_[:8], mod_, msg, iv)
-            block = des_decode(key_[8:16], mod_, block, iv)
-            block = des_encode(key_[16:], mod_, block, iv)
-            result.append(block)
-            i += 8
-
-        bytes_str = byte_list_to_byte_str(result)
-        writing_binary_file(file_encode_text, bytes_str)
-        return bytes_str
-    elif mod == "PAD":
-        mod_ = DES.MODE_ECB
-        result = []
-        i = 0
-        while i < len(text):
-            msg = des_encode(key_[:8], mod_, check_block(text[i:i + 8]))
-            rand = os.urandom(4)
-            msg = rand + msg + rand
-            msg = des_encode(key_[8:16], mod_, msg)
-            rand = os.urandom(4)
-            msg = rand + msg + rand
-            block = des_encode(key_[16:], mod_, msg)
-
-            result.append(block)
-            i += 8
-
-        bytes_str = byte_list_to_byte_str(result)
-        writing_binary_file(file_encode_text, bytes_str)
-    else:
-        raise ValueError("Invalid triple DES mod.")
+            else:
+                f_encode.close()
+                raise ValueError("Invalid triple DES mod.")
 
     return key_
 
